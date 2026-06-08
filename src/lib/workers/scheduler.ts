@@ -182,6 +182,19 @@ export async function stopScheduler(): Promise<void> {
   log.info("scheduler stopped");
 }
 
+// Test-only surface. These functions are the worker's internals; they are not
+// part of its public API and must not be imported by application code. Exposed
+// so the claim/lock and retry/backoff logic can be unit-tested directly.
+export const _internal = {
+  claimDue,
+  recordSuccess,
+  recordFailure,
+  processOne,
+  tick,
+  MAX_ATTEMPTS,
+  BACKOFFS_MS,
+};
+
 // Exposed so manual "publish now" actions can run a row immediately without
 // waiting for the next tick.
 export async function publishNow(platformPostId: string): Promise<void> {

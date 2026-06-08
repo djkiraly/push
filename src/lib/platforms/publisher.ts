@@ -19,7 +19,7 @@ const TRANSIENT_PATTERNS = [
   /5\d{2}/, // 5xx response codes embedded in error messages
 ];
 
-function classify(err: unknown): { transient: boolean; message: string } {
+export function classify(err: unknown): { transient: boolean; message: string } {
   const message =
     err instanceof Error ? err.message : typeof err === "string" ? err : "unknown error";
   const transient = TRANSIENT_PATTERNS.some((re) => re.test(message));
