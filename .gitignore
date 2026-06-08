@@ -1,0 +1,32 @@
+# Node / Next
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Push runtime data — never commit
+data/
+media/
+logs/
+bin/
+
+# Prisma migrations are committed; client artefacts are not
+src/generated/
+prisma/.cache/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Service install artefacts (node-windows daemon files)
+daemon/
+*.bak

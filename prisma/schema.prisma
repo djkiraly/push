@@ -1,0 +1,186 @@
+// Push — local-first social media scheduler
+// Single-operator. SQLite on disk. Never multi-tenant.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Connected social platform accounts
+// ──────────────────────────────────────────────────────────────────────────
+
+model Account {
+  id             String    @id @default(cuid())
+  platform       Platform
+  displayName    String
+  externalId     String
+  accessToken    String
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  scopes         String?
+  metadata       Json?
+  enabled        Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  platformPosts PlatformPost[]
+
+  @@unique([platform, externalId])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Media library — one row per ingested file. Files live on disk.
+// ──────────────────────────────────────────────────────────────────────────
+
+model MediaAsset {
+  id          String      @id @default(cuid())
+  filename    String
+  storagePath String
+  mimeType    String
+  bytes       Int
+  width       Int?
+  height      Int?
+  durationMs  Int?
+  sha256      String      @unique
+  source      MediaSource
+  createdAt   DateTime    @default(now())
+
+  postMedia PostMedia[]
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Posts — source-of-truth content the operator authors. One Post fans out
+// to multiple PlatformPost variants (one per target platform).
+// ──────────────────────────────────────────────────────────────────────────
+
+model Post {
+  id          String      @id @default(cuid())
+  title       String
+  baseCaption String
+  contentType ContentType
+  status      PostStatus  @default(DRAFT)
+  notes       String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  media         PostMedia[]
+  platformPosts PlatformPost[]
+}
+
+model PostMedia {
+  id           String @id @default(cuid())
+  postId       String
+  mediaAssetId String
+  position     Int
+
+  post       Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id])
+
+  @@unique([postId, position])
+}
+
+model PlatformPost {
+  id                String              @id @default(cuid())
+  postId            String
+  accountId         String
+  platform          Platform
+  caption           String
+  hashtags          String?
+  scheduledFor      DateTime?
+  status            PlatformPostStatus  @default(DRAFT)
+  externalPostId    String?
+  externalPermalink String?
+  publishedAt       DateTime?
+  attempts          Int                 @default(0)
+  lastError         String?
+  lockedAt          DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  post    Post                @relation(fields: [postId], references: [id], onDelete: Cascade)
+  account Account             @relation(fields: [accountId], references: [id])
+  metrics MetricSnapshot[]
+  events  PlatformPostEvent[]
+
+  @@index([status, scheduledFor, lockedAt])
+  @@index([accountId, status])
+}
+
+model PlatformPostEvent {
+  id             String   @id @default(cuid())
+  platformPostId String
+  eventType      String
+  payload        Json?
+  createdAt      DateTime @default(now())
+
+  platformPost PlatformPost @relation(fields: [platformPostId], references: [id], onDelete: Cascade)
+
+  @@index([platformPostId, createdAt])
+}
+
+model MetricSnapshot {
+  id             String   @id @default(cuid())
+  platformPostId String
+  capturedAt     DateTime @default(now())
+  views          Int?
+  likes          Int?
+  comments       Int?
+  shares         Int?
+  raw            Json
+
+  platformPost PlatformPost @relation(fields: [platformPostId], references: [id], onDelete: Cascade)
+
+  @@index([platformPostId, capturedAt])
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Settings — single-row k/v store. Values are JSON-encoded strings.
+// Sensitive values (e.g. ai.anthropicKey) are encrypted before storage.
+// ──────────────────────────────────────────────────────────────────────────
+
+model Setting {
+  key   String @id
+  value String
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Enums
+// ──────────────────────────────────────────────────────────────────────────
+
+enum Platform {
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+  YOUTUBE
+}
+
+enum MediaSource {
+  WATCH_FOLDER
+  UPLOADED
+}
+
+enum ContentType {
+  IMAGE
+  CAROUSEL
+  SHORT_VIDEO
+}
+
+enum PostStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ARCHIVED
+}
+
+enum PlatformPostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
