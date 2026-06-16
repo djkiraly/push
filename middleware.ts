@@ -1,30 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-edge";
+import { isPublicPath } from "@/lib/public-paths";
 
-// Routes that the unauthenticated user is allowed to reach. Everything else
-// behind /(app) or /api requires a valid session — except OAuth callbacks,
-// which are reached by the browser mid-flow before the session lands.
-
-const PUBLIC_PATHS = [
-  "/login",
-  "/setup",
-  "/api/auth/login",
-  "/api/auth/setup",
-  "/api/auth/state",
-  "/api/health",
-];
-
-const PUBLIC_PREFIXES = ["/api/oauth/"];
-
-function isPublic(pathname: string): boolean {
-  if (PUBLIC_PATHS.includes(pathname)) return true;
-  return PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
-}
+// NOTE: this middleware only runs under `next start`. Push serves through a
+// custom server (server.ts) via getRequestHandler(), where Next middleware is
+// bypassed — server.ts re-applies the same gate at the HTTP layer. The two
+// share the public-path list in @/lib/public-paths so they can't drift.
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { pathname } = req.nextUrl;
 
-  if (isPublic(pathname)) return NextResponse.next();
+  if (isPublicPath(pathname)) return NextResponse.next();
 
   const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   const session = token ? await verifySessionToken(token) : null;

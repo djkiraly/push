@@ -12,5 +12,12 @@
     "plugins": []
   },
   "include": ["server.ts", "src/lib/**/*.ts", "src/types/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src/app/**", "src/components/**"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/app/**",
+    "src/components/**",
+    "src/**/*.test.ts",
+    "test/**"
+  ]
 }

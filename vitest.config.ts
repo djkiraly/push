@@ -9,6 +9,9 @@ export default defineConfig({
     // the real Prisma migration before any module (and thus the db singleton)
     // is imported.
     setupFiles: ["./test/setup-db.ts"],
+    // global-setup.ts sweeps leftover test-*.db files before the run and after
+    // teardown, from the main process (no open handles → unlink works on Win).
+    globalSetup: ["./test/global-setup.ts"],
   },
   resolve: {
     alias: {

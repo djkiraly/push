@@ -10,6 +10,9 @@ import { readFileSync, unlinkSync } from "node:fs";
 import path from "node:path";
 
 // One file per worker process so parallel test files never share a DB.
+// Sweeping stale files happens in global-setup.ts (main process, before/after
+// the run) — NOT here, because this runs per worker and would race-delete a
+// sibling worker's live DB.
 const dbPath = path.resolve(process.cwd(), "data", `test-${process.pid}.db`);
 
 // db.ts reads DATABASE_URL at construction time; set it before any import of

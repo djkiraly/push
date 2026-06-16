@@ -10,7 +10,7 @@
     "dev": "tsx watch server.ts",
     "build": "next build && tsc -p tsconfig.server.json",
     "start": "cross-env NODE_ENV=production node dist/server.js",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

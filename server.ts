@@ -8,12 +8,28 @@ import http from "node:http";
 import next from "next";
 import { env } from "./src/lib/env";
 import { logger } from "./src/lib/logger";
+import { SESSION_COOKIE_NAME, verifySessionToken } from "./src/lib/auth-edge";
+import { isPublicPath } from "./src/lib/public-paths";
 import { startScheduler, stopScheduler } from "./src/lib/workers/scheduler";
 import { startWatchFolder, stopWatchFolder } from "./src/lib/workers/watch-folder";
 import {
   startAnalyticsPoller,
   stopAnalyticsPoller,
 } from "./src/lib/workers/analytics-poller";
+
+// Minimal cookie reader for the raw http request (no Next helpers available at
+// this layer). Returns the first value matching `name`, URL-decoded.
+function readCookie(header: string | undefined, name: string): string | undefined {
+  if (!header) return undefined;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() === name) {
+      return decodeURIComponent(part.slice(eq + 1).trim());
+    }
+  }
+  return undefined;
+}
 
 async function main(): Promise<void> {
   const cfg = env();
@@ -24,13 +40,32 @@ async function main(): Promise<void> {
   await app.prepare();
 
   const server = http.createServer((req, res) => {
-    handle(req, res).catch((err) => {
-      logger.error({ err, url: req.url }, "request handler crashed");
-      if (!res.headersSent) {
-        res.statusCode = 500;
-        res.end("Internal Server Error");
+    void (async () => {
+      try {
+        // Auth gate. Next middleware is bypassed under a custom server, so we
+        // enforce the session here for non-public API routes (pages are guarded
+        // by their server-component layouts). Without this, every /api/* route
+        // would be reachable unauthenticated.
+        const pathname = (req.url ?? "/").split("?", 1)[0]!;
+        if (pathname.startsWith("/api/") && !isPublicPath(pathname)) {
+          const token = readCookie(req.headers.cookie, SESSION_COOKIE_NAME);
+          const session = token ? await verifySessionToken(token) : null;
+          if (!session) {
+            res.statusCode = 401;
+            res.setHeader("Content-Type", "application/json");
+            res.end(JSON.stringify({ error: "Unauthorized" }));
+            return;
+          }
+        }
+        await handle(req, res);
+      } catch (err) {
+        logger.error({ err, url: req.url }, "request handler crashed");
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.end("Internal Server Error");
+        }
       }
-    });
+    })();
   });
 
   server.listen(cfg.PUSH_PORT, cfg.PUSH_HOST, () => {
